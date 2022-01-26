@@ -122,7 +122,7 @@ proc borrowConnection(pool: var ConnectionPool): DbConn {.gcsafe.} =
     result = pool.connections.pop()
 
     {.cast(gcsafe).}:
-      logger.log(lvlNotice, "AFTER BORROW - Number of connections in pool: " & $pool.connections.len())
+      logger.log(lvlDebug, "AFTER BORROW - Number of connections in pool: " & $pool.connections.len())
 
 
 proc borrowConnection*(): DbConn {.gcsafe.} =
@@ -150,7 +150,7 @@ proc recycleConnection(pool: var ConnectionPool, connection: DbConn) {.gcsafe.} 
       pool.connections.add(connection)
 
     {.cast(gcsafe).}:
-      logger.log(lvlNotice, "AFTER RECYCLE - Number of connections in pool: " & $pool.connections.len() )
+      logger.log(lvlDebug, "AFTER RECYCLE - Number of connections in pool: " & $pool.connections.len() )
 
 
 proc recycleConnection*(connection: DbConn) {.gcsafe.} =
