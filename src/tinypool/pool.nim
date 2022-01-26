@@ -6,10 +6,10 @@ type ConnectionPool = object
   connections: seq[DbConn]
   lock: Lock
   defaultPoolSize: int
-  burstEndTime: MonoTime
+  burstEndTime: MonoTime # The point in time after which current burst mode ends if burst mode is active
   isInBurstMode: bool
   databasePath: string
-  boostModeDuration: Duration
+  burstModeDuration: Duration #
 
 
 var POOL {.global.}: ConnectionPool #Set in initConnectionPool
@@ -30,17 +30,19 @@ proc refillConnections(pool: var ConnectionPool) =
       pool.connections.add(createRawDatabaseConnection(pool.databasePath))
 
 
-proc initConnectionPool*(databasePath: string, poolSize: int, boostModeDuration: Duration = initDuration(minutes = 30)) = 
+proc initConnectionPool*(databasePath: string, poolSize: int, burstModeDuration: Duration = initDuration(minutes = 30)) = 
   ## Initializes the connection pool globally. To do so requires 
   ## the path to the database (`databasePath`) which shall be connected to, 
   ## and the number of connections within the pool under normal load (`poolSize`).
+  ## You can also set the initial duration of the burst mode (burstModeDuration)
+  ## once it is triggered. burstModeDuration defaults to 30 minutes.
 
   POOL.connections = @[]
   POOL.isInBurstMode = false
   POOL.burstEndTime = getMonoTime()
   POOL.defaultPoolSize = poolSize
   POOL.databasePath = databasePath
-  POOL.boostModeDuration = boostModeDuration
+  POOL.burstModeDuration = burstModeDuration
   initLock(POOL.lock)
 
   POOL.refillConnections()
@@ -56,7 +58,7 @@ proc activateBurstMode(pool: var ConnectionPool) =
   ## within the pool. If triggered while burst mode is already active, this 
   ## will refill the pool and reset the timer.
   pool.isInBurstMode = true
-  pool.burstEndTime = getMonoTime() + pool.boostModeDuration
+  pool.burstEndTime = getMonoTime() + pool.burstModeDuration
   
   pool.refillConnections()
 
@@ -79,7 +81,7 @@ proc extendBurstModeLifetime(pool: var ConnectionPool) =
   if pool.isInBurstMode == false:
     logger.log(lvlError, "Tried to extend pool' burst mode while pool wasn't in burst mode. You have a logic issue!")
 
-  let hasAlreadyMaxBurstModeDuration: bool = pool.burstEndTime - getMonoTime() > pool.boostModeDuration
+  let hasAlreadyMaxBurstModeDuration: bool = pool.burstEndTime - getMonoTime() > pool.burstModeDuration
   if hasAlreadyMaxBurstModeDuration:
     return
 
