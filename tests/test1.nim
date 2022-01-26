@@ -9,16 +9,9 @@ import std/[unittest, logging]
 
 import tinypool/pool
 
-setLogFilter(lvlNotice)
+setLogFilter(lvlNone)
 
 suite "withDbConn":
-
-
-  test "Given no initialized pool throw an exception":
-    expect PoolDefect:
-      withDbConn(myCon):
-        myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
-
 
   test "Given an initialized pool, when using withDbConn then be able to create a table, insert and select entries":
     initConnectionPool(":memory:", 2)
@@ -32,3 +25,8 @@ suite "withDbConn":
       check rows[0][1] == "henry"
 
     destroyConnectionPool()
+
+  test "Given no initialized pool throw an exception":
+    expect PoolDefect:
+      withDbConn(myCon):
+        myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")

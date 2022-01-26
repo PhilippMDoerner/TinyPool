@@ -165,6 +165,9 @@ proc destroyConnectionPool*() =
 
   for connection in POOL.connections:
     connection.close()
+  
+  POOL.defaultPoolSize = -1
+  POOL.databasePath = ""
 
   logger.log(lvlNotice, "Destroyed pool to database '" & POOL.databasePath & "'")
 
