@@ -1,5 +1,7 @@
 import std/[times, monotimes, locks, db_sqlite, logging]
 
+export db_sqlite
+
 var logger = newConsoleLogger()
 
 type ConnectionPool = object
@@ -12,7 +14,7 @@ type ConnectionPool = object
   burstModeDuration: Duration #
 
 
-var POOL {.global.}: ConnectionPool #Set in initConnectionPool
+var POOL* {.global.}: ConnectionPool ##DO NOT MESS WITH THIS UNLESS YOU KNOW WHAT YOU ARE DOING
 proc isEmpty(pool: ConnectionPool): bool = pool.connections.len() == 0
 proc isFull(pool: ConnectionPool): bool = pool.connections.len() >= pool.defaultPoolSize
 
@@ -79,7 +81,8 @@ proc extendBurstModeLifetime(pool: var ConnectionPool) =
   ## then the time is not extended. Throws a DbError if burst mode lifetime is
   ## attempted to be extended while pool is not in burst mode.
   if pool.isInBurstMode == false:
-    logger.log(lvlError, "Tried to extend pool' burst mode while pool wasn't in burst mode. You have a logic issue!")
+    {.cast(gcsafe).}:
+      logger.log(lvlError, "Tried to extend pool' burst mode while pool wasn't in burst mode. You have a logic issue!")
 
   let hasAlreadyMaxBurstModeDuration: bool = pool.burstEndTime - getMonoTime() > pool.burstModeDuration
   if hasAlreadyMaxBurstModeDuration:
@@ -95,16 +98,22 @@ proc borrowConnection(pool: var ConnectionPool): DbConn {.gcsafe.} =
   ## Can activate burst mode if larger amounts of connections are necessary.
   ## Extends the pools burst mode if it is in burst mode and need for
   ## the same level of connections is still present.
-  {.cast(gcsafe).}:
-    withLock pool.lock:
-      if pool.isEmpty():
-        pool.activateBurstMode()
+  withLock pool.lock:
+    if pool.isEmpty():
+      pool.activateBurstMode()
 
-      elif not pool.isFull() and pool.isInBurstMode: 
-        pool.extendBurstModeLifetime()
-        
-      result = pool.connections.pop()
+    elif not pool.isFull() and pool.isInBurstMode: 
+      pool.extendBurstModeLifetime()
+      
+    result = pool.connections.pop()
+
+    {.cast(gcsafe).}:
       logger.log(lvlNotice, "AFTER BORROW - Number of connections in pool: " & $pool.connections.len())
+
+
+proc borrowConnection*(): DbConn {.gcsafe.} =
+  {.cast(gcsafe).}:
+    POOL.borrowConnection()
 
 
 proc recycleConnection(pool: var ConnectionPool, connection: DbConn) {.gcsafe.} =
@@ -115,16 +124,21 @@ proc recycleConnection(pool: var ConnectionPool, connection: DbConn) {.gcsafe.} 
   ## and thusclosed and garbage collected.
   ## If the pool is in burst mode, it will allow an unlimited number of 
   ## connections into the pool.
-  {.cast(gcsafe).}:
-    withLock pool.lock:
-      pool.updateBurstModeState()
+  withLock pool.lock:
+    pool.updateBurstModeState()
 
-      if pool.isFull() and not pool.isInBurstMode:
-        connection.close()
-      else:
-        pool.connections.add(connection)
+    if pool.isFull() and not pool.isInBurstMode:
+      connection.close()
+    else:
+      pool.connections.add(connection)
 
+    {.cast(gcsafe).}:
       logger.log(lvlNotice, "AFTER RECYCLE - Number of connections in pool: " & $pool.connections.len() )
+
+
+proc recycleConnection*(connection: DbConn) {.gcsafe.} =
+  {.cast(gcsafe).}:
+    POOL.recycleConnection(connection)
 
 
 proc destroyConnectionPool*() =
@@ -145,9 +159,9 @@ template withDbConn*(connection: untyped, body: untyped) =
     initConnectionPool(":memory:", 2)
 
     withDbConn(myCon):
-      myCon.exec("""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
-      myCon.exec("""INSERT INTO auth_user (username) VALUES ('henry');""")
-      let rows = myCon.getAllRows("""SELECT * FROM auth_user WHERE username LIKE 'Henry';""")
+      myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
+      myCon.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry');""")
+      let rows = myCon.getAllRows(sql"""SELECT * FROM auth_user WHERE username LIKE 'Henry';""")
       assert rows.len() == 1
       assert rows[0].username == "henry"
 
