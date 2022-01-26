@@ -5,8 +5,30 @@
 #
 # To run these tests, simply execute `nimble test`.
 
-import unittest
+import std/[unittest, logging]
 
-import tinypool
-test "can add":
-  check add(5, 5) == 10
+import tinypool/pool
+
+setLogFilter(lvlNotice)
+
+suite "withDbConn":
+
+
+  test "Given no initialized pool throw an exception":
+    expect PoolDefect:
+      withDbConn(myCon):
+        myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
+
+
+  test "Given an initialized pool, when using withDbConn then be able to create a table, insert and select entries":
+    initConnectionPool(":memory:", 2)
+
+    withDbConn(myCon):
+      myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE)""")
+      myCon.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry')""")
+      let rows = myCon.getAllRows(sql"""SELECT * FROM auth_user WHERE username LIKE 'Henry'""")
+      check rows.len() == 1
+      check rows[0][0] == "1"
+      check rows[0][1] == "henry"
+
+    destroyConnectionPool()
