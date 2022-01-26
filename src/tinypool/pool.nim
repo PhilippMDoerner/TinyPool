@@ -4,6 +4,9 @@ export db_sqlite
 
 var logger = newConsoleLogger()
 
+type PoolDefect* = object of Defect
+
+
 type ConnectionPool = object
   connections: seq[DbConn]
   lock: Lock
@@ -11,10 +14,12 @@ type ConnectionPool = object
   burstEndTime: MonoTime # The point in time after which current burst mode ends if burst mode is active
   isInBurstMode: bool
   databasePath: string
-  burstModeDuration: Duration #
+  burstModeDuration: Duration 
 
 
-var POOL* {.global.}: ConnectionPool ##DO NOT MESS WITH THIS UNLESS YOU KNOW WHAT YOU ARE DOING
+var POOL {.global.}: ConnectionPool##DO NOT MESS WITH THIS UNLESS YOU KNOW WHAT YOU ARE DOING
+POOL.defaultPoolSize = -1
+POOL.databasePath = ""
 proc isEmpty(pool: ConnectionPool): bool = pool.connections.len() == 0
 proc isFull(pool: ConnectionPool): bool = pool.connections.len() >= pool.defaultPoolSize
 
@@ -28,6 +33,9 @@ proc refillConnections(pool: var ConnectionPool) =
   ## Creates a number of database connections equal to the size of the connection pool
   ## and adds them to said pool
   withLock pool.lock:
+    if pool.defaultPoolSize < 0:
+      raise newException(PoolDefect, "Tried to use uninitialized database connection pool. Did you forget to call 'initConnectionPool' on startup? ")
+
     for i in 1..pool.defaultPoolSize:
       pool.connections.add(createRawDatabaseConnection(pool.databasePath))
 
@@ -39,6 +47,11 @@ proc initConnectionPool*(databasePath: string, poolSize: int, burstModeDuration:
   ## You can also set the initial duration of the burst mode (burstModeDuration)
   ## once it is triggered. burstModeDuration defaults to 30 minutes.
 
+  let poolAlreadyInitialized = POOL.defaultPoolSize > 0 and POOL.databasePath != ""
+  if poolAlreadyInitialized:
+    raise newException(PoolDefect, """Tried to initialize database connection pool a second time""")
+
+
   POOL.connections = @[]
   POOL.isInBurstMode = false
   POOL.burstEndTime = getMonoTime()
@@ -49,7 +62,8 @@ proc initConnectionPool*(databasePath: string, poolSize: int, burstModeDuration:
 
   POOL.refillConnections()
 
-  logger.log(lvlNotice, "Initialized pool to database '" & POOL.databasePath & "' with " & $POOL.connections.len() & " connections")
+  {.cast(gcsafe).}:
+    logger.log(lvlNotice, "Initialized pool to database '" & POOL.databasePath & "' with " & $POOL.connections.len() & " connections")
 
 
 proc activateBurstMode(pool: var ConnectionPool) =
@@ -113,6 +127,9 @@ proc borrowConnection(pool: var ConnectionPool): DbConn {.gcsafe.} =
 
 proc borrowConnection*(): DbConn {.gcsafe.} =
   {.cast(gcsafe).}:
+    if POOL.defaultPoolSize == -1:
+      raise newException(PoolDefect, "Tried to use uninitialized database connection pool. Did you forget to call 'initConnectionPool' on startup? ")
+
     POOL.borrowConnection()
 
 
@@ -168,8 +185,8 @@ template withDbConn*(connection: untyped, body: untyped) =
     destroyConnectionPool()
 
   block: #ensures connection exists only within the scope of this block
-    let connection: DbConn = POOL.borrowConnection()
+    let connection: DbConn = borrowConnection()
     try:
       body
     finally:
-      POOL.recycleConnection(connection)
+      recycleConnection(connection)
