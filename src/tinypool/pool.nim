@@ -24,7 +24,7 @@ initLock(POOL.lock)
 
 proc isEmpty(pool: ConnectionPool): bool = pool.connections.len() == 0
 proc isFull(pool: ConnectionPool): bool = pool.connections.len() >= pool.defaultPoolSize
-proc isInitialized(pool: ConnectionPool): bool = pool.defaultPoolSize != -1 and pool.databasePath != ""
+proc isInitialized(pool: ConnectionPool): bool = pool.defaultPoolSize > 0 and pool.databasePath != ""
 
 proc createRawDatabaseConnection(databasePath: string): DbConn =
     ## Creates a standard sqlite DbConn to the database this was initialized with
@@ -33,13 +33,15 @@ proc createRawDatabaseConnection(databasePath: string): DbConn =
 
 proc refillConnections(pool: var ConnectionPool) =
   ## Creates a number of database connections equal to the size of the connection pool
-  ## and adds them to said pool
-  withLock pool.lock:
-    if not pool.isInitialized():
-      raise newException(PoolDefect, "Tried to use uninitialized database connection pool. Did you forget to call 'initConnectionPool' on startup? ")
+  ## and adds them to said pool. ONLY use this if you have acquired the lock on the pool!
+  if not pool.isInitialized():
+    raise newException(PoolDefect, "Tried to use uninitialized database connection pool. Did you forget to call 'initConnectionPool' on startup? ")
 
-    for i in 1..pool.defaultPoolSize:
-      pool.connections.add(createRawDatabaseConnection(pool.databasePath))
+  for i in 1..pool.defaultPoolSize:
+    pool.connections.add(createRawDatabaseConnection(pool.databasePath))
+
+  {.cast(gcsafe).}:
+    logger.log(lvlDebug, "Refilled Pool to " & $POOL.connections.len() & " connections")
 
 
 proc initConnectionPool*(databasePath: string, poolSize: int, burstModeDuration: Duration = initDuration(minutes = 30)) = 
@@ -59,7 +61,8 @@ proc initConnectionPool*(databasePath: string, poolSize: int, burstModeDuration:
   POOL.databasePath = databasePath
   POOL.burstModeDuration = burstModeDuration
 
-  POOL.refillConnections()
+  withLock POOL.lock:
+    POOL.refillConnections()
 
   {.cast(gcsafe).}:
     logger.log(lvlNotice, "Initialized pool to database '" & POOL.databasePath & "' with " & $POOL.connections.len() & " connections")
@@ -86,6 +89,9 @@ proc updateBurstModeState(pool: var ConnectionPool) =
 
   if getMonoTime() > pool.burstEndTime:
     pool.isInBurstMode = false
+
+    {.cast(gcsafe).}:
+      logger.log(lvlDebug, "Deactivated Burst Mode")
 
 
 proc extendBurstModeLifetime(pool: var ConnectionPool) =
@@ -115,8 +121,14 @@ proc borrowConnection(pool: var ConnectionPool): DbConn {.gcsafe.} =
     if not pool.isInitialized():
       raise newException(PoolDefect, """Tried to borrow a connection from an uninitialized/destroyed database connection pool!""")
     
+    {.cast(gcsafe).}:
+      logger.log(lvlDebug, "Pool has " & $pool.connections.len() & " connections and is empty: " & $pool.isEmpty())
+
     if pool.isEmpty():
       pool.activateBurstMode()
+
+      {.cast(gcsafe).}:
+        logger.log(lvlDebug, "BurstModePool has " & $pool.connections.len() & " connections and is empty: " & $pool.isEmpty())
 
     elif not pool.isFull() and pool.isInBurstMode: 
       pool.extendBurstModeLifetime()
@@ -163,7 +175,8 @@ proc recycleConnection*(connection: sink DbConn) {.gcsafe.} =
 proc destroyConnectionPool*() =
   ## Destroys the currently initialized pool. This also ensures that all
   ## connections currently within the pool are closed.
-  deinitLock(POOL.lock)
+  if not POOL.isInitialized():
+    return
 
   for connection in POOL.connections:
     connection.close()
