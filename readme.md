@@ -1,7 +1,7 @@
 # TinyPool
 
 Tinypool is a minimalistic sqlite connection pool with support for multi-threaded access.
-It's essentially a global-variable `seq[DbConn]` that can be accessed in a thread-safe manner.
+It's essentially a global-variable `seq[DbConn]` associated with a `lock` that can be accessed in a thread-safe manner.
 It also grows and shrinks as configured, but more on that down the line.
 
 ## Quickstart
@@ -67,6 +67,10 @@ To destroy the pool e.g. on shutdown of your application, just call `destroyConn
 
 ## burstMode
 
-If more connections are needed than provided here the pool will go into "burst mode" and automatically refill with newly created connections.
+If more connections are needed than it has, the pool will temporarily go into "burst mode" and automatically refill with new batch of connections, the amount of which is determined by the `poolSize`.
+
 While the pool is in burst mode it can hold an unlimited amount of connections.
+
 While the pool is not in burst mode, any superfluous connection that is returned to it gets closed.
+
+Burst mode ends after a specified duration (30 minutes), though that gets extended if the connections from the added batch are still needed.
