@@ -41,12 +41,14 @@ let defaultPoolSize = 20
 initConnections(databasePath, defaultPoolSize)
 
 var rows: seq[Row]
+
 withDbConn(connection):
   myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
 
   myCon.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry');""")
 
   let rows = myCon.getAllRows(sql"""SELECT * FROM auth_user WHERE username LIKE 'Henry';""")
+
 assert rows.len() == 1
 assert rows[0].username == "henry"
 
