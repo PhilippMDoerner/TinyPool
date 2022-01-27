@@ -9,7 +9,7 @@ It also grows and shrinks as configured, but more on that down the line.
 Your 2 main ways of interacting with tinypool after initialization is either:
 
 1. `withDbConn(someConnectionVariableName)` (recommended)
-2. `borrowConnection` and `recycleConnection` OR
+2. `borrowConnection` and `recycleConnection`
 
 ### 1. withDbConn
 
