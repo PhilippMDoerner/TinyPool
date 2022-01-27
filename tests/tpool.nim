@@ -30,7 +30,7 @@ suite "withDbConn":
     initConnectionPool(":memory:", 2)
 
     withDbConn(myCon):
-      let a = 3
+      discard "I'm not doing anything here"
 
     check compiles(myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT)""")) == false
 
@@ -59,11 +59,12 @@ suite "initConnectionPool":
   teardown:
     destroyConnectionPool()
 
+
   test "Given an initialized pool, when initializing it for a second time, throw a PoolDefect":
     expect PoolDefect:
       initConnectionPool(":memory:", 2)
       
-
+  
   test "Given an initialized pool with 2, when borrowing more connections than the pool has, generate new connections":
     let con1 = borrowConnection()
     let con2 = borrowConnection()
@@ -72,6 +73,31 @@ suite "initConnectionPool":
     con2.recycleConnection()
     con3.recycleConnection()
 
+
+suite "destroyConnectionPool":
+  test "Given an initialized pool, when having destroyed the pool, then be unable to borrow from it":
+    initConnectionPool(":memory:", 2)
+    destroyConnectionPool()
+    expect PoolDefect:
+      discard borrowConnection()
+
+  test "Given an initialized pool, when having destroyed the pool, then be unable to recycle back to it":
+    initConnectionPool(":memory:", 2)
+    let con = borrowConnection()
+
+    destroyConnectionPool()
+    expect PoolDefect:
+      con.recycleConnection()
+
+  test "Given an uninitialized pool, when destroying the pool, do nothing":
+    destroyConnectionPool()
+
+  test "Given a destroyed pool, when destroying the pool, do nothing":
+    initConnectionPool(":memory:", 2)
+    destroyConnectionPool()
+    destroyConnectionPool()
+
+
 suite "borrowConnection":
   setup: 
     initConnectionPool(":memory:", 2)
@@ -79,6 +105,17 @@ suite "borrowConnection":
   teardown:
     destroyConnectionPool()
 
+  test "Given a borrowed connection, when using it to execute an SQL statement, then execute the SQL statement and be recyclable":
+    let con = borrowConnection()
+    
+    con.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE)""")
+    con.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry')""")
+    let rows = con.getAllRows(sql"""SELECT * FROM auth_user WHERE username LIKE 'Henry'""")
+    check rows.len() == 1
+    check rows[0][0] == "1"
+    check rows[0][1] == "henry"
+
+    con.recycleConnection()
   # TODO: Figure out how to implement this
   # test "Given a borrowed connection, when using it after it has been recycled, throw a PoolDefect":
   #   expect PoolDefect:
