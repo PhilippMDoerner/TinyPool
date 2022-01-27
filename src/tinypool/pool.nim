@@ -20,9 +20,11 @@ type ConnectionPool = object
 var POOL {.global.}: ConnectionPool##DO NOT MESS WITH THIS UNLESS YOU KNOW WHAT YOU ARE DOING
 POOL.defaultPoolSize = -1
 POOL.databasePath = ""
+initLock(POOL.lock)
+
 proc isEmpty(pool: ConnectionPool): bool = pool.connections.len() == 0
 proc isFull(pool: ConnectionPool): bool = pool.connections.len() >= pool.defaultPoolSize
-
+proc isInitialized(pool: ConnectionPool): bool = pool.defaultPoolSize != -1 and pool.databasePath != ""
 
 proc createRawDatabaseConnection(databasePath: string): DbConn =
     ## Creates a standard sqlite DbConn to the database this was initialized with
@@ -33,7 +35,7 @@ proc refillConnections(pool: var ConnectionPool) =
   ## Creates a number of database connections equal to the size of the connection pool
   ## and adds them to said pool
   withLock pool.lock:
-    if pool.defaultPoolSize < 0:
+    if not pool.isInitialized():
       raise newException(PoolDefect, "Tried to use uninitialized database connection pool. Did you forget to call 'initConnectionPool' on startup? ")
 
     for i in 1..pool.defaultPoolSize:
@@ -47,10 +49,8 @@ proc initConnectionPool*(databasePath: string, poolSize: int, burstModeDuration:
   ## You can also set the initial duration of the burst mode (burstModeDuration)
   ## once it is triggered. burstModeDuration defaults to 30 minutes.
 
-  let poolAlreadyInitialized = POOL.defaultPoolSize > 0 and POOL.databasePath != ""
-  if poolAlreadyInitialized:
+  if POOL.isInitialized():
     raise newException(PoolDefect, """Tried to initialize database connection pool a second time""")
-
 
   POOL.connections = @[]
   POOL.isInBurstMode = false
@@ -58,7 +58,6 @@ proc initConnectionPool*(databasePath: string, poolSize: int, burstModeDuration:
   POOL.defaultPoolSize = poolSize
   POOL.databasePath = databasePath
   POOL.burstModeDuration = burstModeDuration
-  initLock(POOL.lock)
 
   POOL.refillConnections()
 
@@ -96,7 +95,7 @@ proc extendBurstModeLifetime(pool: var ConnectionPool) =
   ## attempted to be extended while pool is not in burst mode.
   if pool.isInBurstMode == false:
     {.cast(gcsafe).}:
-      logger.log(lvlError, "Tried to extend pool' burst mode while pool wasn't in burst mode. You have a logic issue!")
+      logger.log(lvlError, "Tried to extend pool's burst mode while pool wasn't in burst mode. You have a logic issue!")
 
   let hasAlreadyMaxBurstModeDuration: bool = pool.burstEndTime - getMonoTime() > pool.burstModeDuration
   if hasAlreadyMaxBurstModeDuration:
@@ -113,6 +112,9 @@ proc borrowConnection(pool: var ConnectionPool): DbConn {.gcsafe.} =
   ## Extends the pools burst mode if it is in burst mode and need for
   ## the same level of connections is still present.
   withLock pool.lock:
+    if not pool.isInitialized():
+      raise newException(PoolDefect, """Tried to borrow a connection from an uninitialized/destroyed database connection pool!""")
+    
     if pool.isEmpty():
       pool.activateBurstMode()
 
@@ -127,9 +129,6 @@ proc borrowConnection(pool: var ConnectionPool): DbConn {.gcsafe.} =
 
 proc borrowConnection*(): DbConn {.gcsafe.} =
   {.cast(gcsafe).}:
-    if POOL.defaultPoolSize == -1:
-      raise newException(PoolDefect, "Tried to use uninitialized database connection pool. Did you forget to call 'initConnectionPool' on startup? ")
-
     POOL.borrowConnection()
 
 
@@ -142,6 +141,9 @@ proc recycleConnection(pool: var ConnectionPool, connection: DbConn) {.gcsafe.} 
   ## If the pool is in burst mode, it will allow an unlimited number of 
   ## connections into the pool.
   withLock pool.lock:
+    if not pool.isInitialized():
+      raise newException(PoolDefect, """Tried to recycle a connection back into an uninitialized/destroyed pool!""")
+   
     pool.updateBurstModeState()
 
     if pool.isFull() and not pool.isInBurstMode:
@@ -153,7 +155,7 @@ proc recycleConnection(pool: var ConnectionPool, connection: DbConn) {.gcsafe.} 
       logger.log(lvlDebug, "AFTER RECYCLE - Number of connections in pool: " & $pool.connections.len() )
 
 
-proc recycleConnection*(connection: DbConn) {.gcsafe.} =
+proc recycleConnection*(connection: sink DbConn) {.gcsafe.} =
   {.cast(gcsafe).}:
     POOL.recycleConnection(connection)
 
