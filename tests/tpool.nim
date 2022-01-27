@@ -26,7 +26,41 @@ suite "withDbConn":
 
     destroyConnectionPool()
 
-  test "Given no initialized pool throw an exception":
+  test "Given no initialized pool, when asking for a connection throw a PoolDefect":
     expect PoolDefect:
       withDbConn(myCon):
         myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
+
+
+suite "initConnectionPool":
+  setup: 
+    initConnectionPool(":memory:", 2)
+  
+  teardown:
+    destroyConnectionPool()
+
+  test "Given an initialized pool, when initializing it for a second time, throw a PoolDefect":
+    expect PoolDefect:
+      initConnectionPool(":memory:", 2)
+      
+
+  test "Given an initialized pool with 2, when borrowing more connections than the pool has, generate new connections":
+    let con1 = borrowConnection()
+    let con2 = borrowConnection()
+    let con3 = borrowConnection()
+    con1.recycleConnection()
+    con2.recycleConnection()
+    con3.recycleConnection()
+
+suite "borrowConnection":
+  setup: 
+    initConnectionPool(":memory:", 2)
+  
+  teardown:
+    destroyConnectionPool()
+
+  test "Given a borrowed connection, when using it after it has been recycled, throw an X defect":
+    let con = borrowConnection()
+    con.recycleConnection()
+
+    con.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
