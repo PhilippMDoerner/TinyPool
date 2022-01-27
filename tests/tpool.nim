@@ -13,7 +13,7 @@ setLogFilter(lvlNone)
 
 suite "withDbConn":
 
-  test "Given an initialized pool, when using withDbConn then be able to create a table, insert and select entries":
+  test "Given an initialized pool, when using withDbConn, then be able to create a table, insert and select entries":
     initConnectionPool(":memory:", 2)
 
     withDbConn(myCon):
@@ -25,8 +25,28 @@ suite "withDbConn":
       check rows[0][1] == "henry"
 
     destroyConnectionPool()
+  
+  test "Given using withDbConn with an initialized pool, when using the connection outside of withDbConn, then don't compile":
+    initConnectionPool(":memory:", 2)
+
+    withDbConn(myCon):
+      let a = 3
+
+    check compiles(myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT)""")) == false
+
+    destroyConnectionPool()
+
 
   test "Given no initialized pool, when asking for a connection throw a PoolDefect":
+    expect PoolDefect:
+      withDbConn(myCon):
+        myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
+
+
+  test "Given a destroyed pool, when asking for a connection throw a PoolDefect":
+    initConnectionPool(":memory:", 2)
+    destroyConnectionPool()
+
     expect PoolDefect:
       withDbConn(myCon):
         myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
@@ -59,8 +79,10 @@ suite "borrowConnection":
   teardown:
     destroyConnectionPool()
 
-  test "Given a borrowed connection, when using it after it has been recycled, throw an X defect":
-    let con = borrowConnection()
-    con.recycleConnection()
+  # TODO: Figure out how to implement this
+  # test "Given a borrowed connection, when using it after it has been recycled, throw a PoolDefect":
+  #   expect PoolDefect:
+  #     let con = borrowConnection()
+  #     con.recycleConnection()
 
-    con.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
+  #     con.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
