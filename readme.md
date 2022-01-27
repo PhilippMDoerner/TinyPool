@@ -13,20 +13,22 @@ Your 2 main ways of interacting with it is either:
 ```nim
 import tinypool #For convenience reasons, tinypool also exports std/db_sqlite since you'll need that either way
 
-let searchSQLStatement = sql"""
-    SELECT *
-    FROM my_fancy_table
-    WHERE my_fancy_table.id = ?;
-"""
-let id = 5
+let databasePath = ":memory:"
+let defaultPoolSize = 20
+initConnections(databasePath, defaultPoolSize)
 
-let connection = borrowConnection()
-var rows: seq[Row] = connection.getAllRows(
-    searchSQLStatement,
-    id
-  )
 
-connection.recycleConnection()
+let myCon: DbConn = borrowConnection()
+
+myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
+
+myCon.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry');""")
+
+let rows = myCon.getAllRows(sql"""SELECT * FROM auth_user WHERE username LIKE 'Henry';""")
+assert rows.len() == 1
+assert rows[0].username == "henry"
+
+myCon.recycleConnection()
 ```
 
 ## 2. withDbConn
@@ -34,17 +36,19 @@ connection.recycleConnection()
 ```nim
 import tinypool #For convenience reasons, tinypool also exports std/db_sqlite since you'll need that either way
 
-let searchSQLStatement = sql"""
-    SELECT *
-    FROM my_fancy_table
-    WHERE my_fancy_table.id = ?;
-"""
-let id = 5
+let databasePath = ":memory:"
+let defaultPoolSize = 20
+initConnections(databasePath, defaultPoolSize)
 
 var rows: seq[Row]
 withDbConn(connection):
-  rows = connection.getAllRows(
-    searchSQLStatement,
-    id
-  )
+  myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
+
+  myCon.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry');""")
+
+  let rows = myCon.getAllRows(sql"""SELECT * FROM auth_user WHERE username LIKE 'Henry';""")
+assert rows.len() == 1
+assert rows[0].username == "henry"
+
+destroyConnectionPool()
 ```
