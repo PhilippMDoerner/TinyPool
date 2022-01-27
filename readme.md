@@ -42,7 +42,7 @@ initConnections(databasePath, defaultPoolSize)
 
 var rows: seq[Row]
 
-withDbConn(connection):
+withDbConn(myCon):
   myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
 
   myCon.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry');""")
