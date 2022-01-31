@@ -2,8 +2,6 @@ import std/[times, monotimes, locks, db_sqlite, logging]
 
 export db_sqlite
 
-var logger = newConsoleLogger()
-
 type PoolDefect* = object of Defect
 
 
@@ -41,7 +39,7 @@ proc refillConnections(pool: var ConnectionPool) =
     pool.connections.add(createRawDatabaseConnection(pool.databasePath))
 
   {.cast(gcsafe).}:
-    logger.log(lvlDebug, "Refilled Pool to " & $POOL.connections.len() & " connections")
+    log(lvlDebug, "Refilled Pool to " & $POOL.connections.len() & " connections")
 
 
 proc initConnectionPool*(databasePath: string, poolSize: int, burstModeDuration: Duration = initDuration(minutes = 30)) = 
@@ -65,7 +63,7 @@ proc initConnectionPool*(databasePath: string, poolSize: int, burstModeDuration:
     POOL.refillConnections()
 
   {.cast(gcsafe).}:
-    logger.log(lvlNotice, "Initialized pool to database '" & POOL.databasePath & "' with " & $POOL.connections.len() & " connections")
+    log(lvlNotice, "Initialized pool to database '" & POOL.databasePath & "' with " & $POOL.connections.len() & " connections")
 
 
 proc activateBurstMode(pool: var ConnectionPool) =
@@ -91,7 +89,7 @@ proc updateBurstModeState(pool: var ConnectionPool) =
     pool.isInBurstMode = false
 
     {.cast(gcsafe).}:
-      logger.log(lvlDebug, "Deactivated Burst Mode")
+      log(lvlDebug, "Deactivated Burst Mode")
 
 
 proc extendBurstModeLifetime(pool: var ConnectionPool) =
@@ -101,7 +99,7 @@ proc extendBurstModeLifetime(pool: var ConnectionPool) =
   ## attempted to be extended while pool is not in burst mode.
   if pool.isInBurstMode == false:
     {.cast(gcsafe).}:
-      logger.log(lvlError, "Tried to extend pool's burst mode while pool wasn't in burst mode. You have a logic issue!")
+      log(lvlError, "Tried to extend pool's burst mode while pool wasn't in burst mode. You have a logic issue!")
 
   let hasAlreadyMaxBurstModeDuration: bool = pool.burstEndTime - getMonoTime() > pool.burstModeDuration
   if hasAlreadyMaxBurstModeDuration:
@@ -122,13 +120,13 @@ proc borrowConnection(pool: var ConnectionPool): DbConn {.gcsafe.} =
       raise newException(PoolDefect, """Tried to borrow a connection from an uninitialized/destroyed database connection pool!""")
     
     {.cast(gcsafe).}:
-      logger.log(lvlDebug, "Pool has " & $pool.connections.len() & " connections and is empty: " & $pool.isEmpty())
+      log(lvlDebug, "Pool has " & $pool.connections.len() & " connections and is empty: " & $pool.isEmpty())
 
     if pool.isEmpty():
       pool.activateBurstMode()
 
       {.cast(gcsafe).}:
-        logger.log(lvlDebug, "BurstModePool has " & $pool.connections.len() & " connections and is empty: " & $pool.isEmpty())
+        log(lvlDebug, "BurstModePool has " & $pool.connections.len() & " connections and is empty: " & $pool.isEmpty())
 
     elif not pool.isFull() and pool.isInBurstMode: 
       pool.extendBurstModeLifetime()
@@ -136,7 +134,7 @@ proc borrowConnection(pool: var ConnectionPool): DbConn {.gcsafe.} =
     result = pool.connections.pop()
 
     {.cast(gcsafe).}:
-      logger.log(lvlDebug, "AFTER BORROW - Number of connections in pool: " & $pool.connections.len())
+      log(lvlDebug, "AFTER BORROW - Number of connections in pool: " & $pool.connections.len())
 
 
 proc borrowConnection*(): DbConn {.gcsafe.} =
@@ -164,7 +162,7 @@ proc recycleConnection(pool: var ConnectionPool, connection: DbConn) {.gcsafe.} 
       pool.connections.add(connection)
 
     {.cast(gcsafe).}:
-      logger.log(lvlDebug, "AFTER RECYCLE - Number of connections in pool: " & $pool.connections.len() )
+      log(lvlDebug, "AFTER RECYCLE - Number of connections in pool: " & $pool.connections.len() )
 
 
 proc recycleConnection*(connection: sink DbConn) {.gcsafe.} =
@@ -184,7 +182,7 @@ proc destroyConnectionPool*() =
   POOL.defaultPoolSize = -1
   POOL.databasePath = ""
 
-  logger.log(lvlNotice, "Destroyed pool to database '" & POOL.databasePath & "'")
+  log(lvlNotice, "Destroyed pool to database '" & POOL.databasePath & "'")
 
 
 template withDbConn*(connection: untyped, body: untyped) =
