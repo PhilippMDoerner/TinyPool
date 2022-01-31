@@ -4,6 +4,10 @@ Tinypool is a minimalistic sqlite connection pool with support for multi-threade
 It's essentially a global-variable `seq[DbConn]` associated with a `lock` that can be accessed in a thread-safe manner.
 It also grows and shrinks as configured, but more on that down the line.
 
+## Installation
+
+`nimble install tinypool`
+
 ## Quickstart
 
 Your 2 main ways of interacting with tinypool after initialization is either:
