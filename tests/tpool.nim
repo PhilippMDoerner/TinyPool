@@ -5,7 +5,7 @@
 #
 # To run these tests, simply execute `nimble test`.
 
-import std/[unittest, logging]
+import std/[unittest, logging, db_sqlite]
 
 import tinypool/pool
 
@@ -66,9 +66,9 @@ suite "initConnectionPool":
       
   
   test "Given an initialized pool with 2, when borrowing more connections than the pool has, generate new connections":
-    let con1 = borrowConnection()
-    let con2 = borrowConnection()
-    let con3 = borrowConnection()
+    var con1 = borrowConnection()
+    var con2 = borrowConnection()
+    var con3 = borrowConnection()
     con1.recycleConnection()
     con2.recycleConnection()
     con3.recycleConnection()
@@ -83,7 +83,7 @@ suite "destroyConnectionPool":
 
   test "Given an initialized pool, when having destroyed the pool, then be unable to recycle back to it":
     initConnectionPool(":memory:", 2)
-    let con = borrowConnection()
+    var con = borrowConnection()
 
     destroyConnectionPool()
     expect PoolDefect:
@@ -106,7 +106,7 @@ suite "borrowConnection":
     destroyConnectionPool()
 
   test "Given a borrowed connection, when using it to execute an SQL statement, then execute the SQL statement and be recyclable":
-    let con = borrowConnection()
+    var con = borrowConnection()
     
     con.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE)""")
     con.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry')""")
@@ -118,8 +118,7 @@ suite "borrowConnection":
     con.recycleConnection()
   # TODO: Figure out how to implement this
   # test "Given a borrowed connection, when using it after it has been recycled, throw a PoolDefect":
-  #   expect PoolDefect:
-  #     let con = borrowConnection()
-  #     con.recycleConnection()
+  #   var con = borrowConnection()
+  #   con.recycleConnection()
 
-  #     con.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
+  #   check compiles(con.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT)""")) == false
