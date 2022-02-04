@@ -1,7 +1,5 @@
 import std/[times, monotimes, locks, db_sqlite, logging, strformat]
 
-export db_sqlite
-
 type PoolDefect* = object of Defect
 
 
