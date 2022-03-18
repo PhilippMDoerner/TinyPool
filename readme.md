@@ -22,7 +22,7 @@ import tinypool #For convenience reasons, tinypool also exports std/db_sqlite si
 
 let databasePath = ":memory:"
 let defaultPoolSize = 2
-initConnections(databasePath, defaultPoolSize)
+initConnectionPool(databasePath, defaultPoolSize)
 
 var rows: seq[Row]
 
@@ -46,7 +46,7 @@ import tinypool #For convenience reasons, tinypool also exports std/db_sqlite si
 
 let databasePath = ":memory:"
 let defaultPoolSize = 2
-initConnections(databasePath, defaultPoolSize)
+initConnectionPool(databasePath, defaultPoolSize)
 
 
 let myCon: DbConn = borrowConnection()
@@ -60,11 +60,13 @@ assert rows.len() == 1
 assert rows[0].username == "henry"
 
 myCon.recycleConnection()
+
+destroyConnectionPool()
 ```
 
 ## Initialization/Configuration and Destruction
 
-In order for tinypool to work, it needs to be told where the sqlite database is that it shall connect to, and how many connections it is supposed to hold under normal circumstances.
+In order for tinypool to work, it needs to be told where the sqlite database is that it shall connect to, and how many connections it is supposed to hold under normal circumstances. If you're uncertain, I'd recommend ~4 connections.
 
 To initialize the pool e.g. on startup of your application, just call `initConnectionPool(databasePath, poolSize)`.
 To destroy the pool e.g. on shutdown of your application, just call `destroyConnectionPool`.
