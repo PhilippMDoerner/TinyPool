@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.2.1"
+version       = "0.3.1"
 author        = "PhilippMDoerner"
 description   = "A minimalistic connection pooling package for sqlite"
 license       = "MIT"
