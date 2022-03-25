@@ -1,4 +1,5 @@
-import std/[times, monotimes, locks, db_sqlite, logging, strformat]
+import std/[times, monotimes, locks, db_sqlite, strformat]
+import log 
 
 type PoolDefect* = object of Defect
 
@@ -36,8 +37,7 @@ proc refillConnections(pool: var ConnectionPool) =
   for i in 1..pool.defaultPoolSize:
     pool.connections.add(createRawDatabaseConnection(pool.databasePath))
 
-  {.cast(gcsafe).}:
-    log(lvlDebug, fmt "TINYPOOL: Refilled Pool to {POOL.connections.len()} connections")
+  debug fmt "TINYPOOL: Refilled Pool to {POOL.connections.len()} connections"
 
 
 proc initConnectionPool*(databasePath: string, poolSize: int, burstModeDuration: Duration = initDuration(minutes = 30)) = 
@@ -60,8 +60,7 @@ proc initConnectionPool*(databasePath: string, poolSize: int, burstModeDuration:
   withLock POOL.lock:
     POOL.refillConnections()
 
-  {.cast(gcsafe).}:
-    log(lvlNotice, fmt "TINYPOOL: Initialized pool to database '{POOL.databasePath}' with {POOL.connections.len()} connections")
+  notice fmt "TINYPOOL: Initialized pool to database '{POOL.databasePath}' with {POOL.connections.len()} connections"
 
 
 proc activateBurstMode(pool: var ConnectionPool) =
@@ -86,8 +85,7 @@ proc updateBurstModeState(pool: var ConnectionPool) =
   if getMonoTime() > pool.burstEndTime:
     pool.isInBurstMode = false
 
-    {.cast(gcsafe).}:
-      log(lvlDebug, "TINYPOOL: Deactivated Burst Mode")
+    notice "TINYPOOL: Deactivated Burst Mode"
 
 
 proc extendBurstModeLifetime(pool: var ConnectionPool) =
@@ -96,8 +94,7 @@ proc extendBurstModeLifetime(pool: var ConnectionPool) =
   ## then the time is not extended. Throws a DbError if burst mode lifetime is
   ## attempted to be extended while pool is not in burst mode.
   if pool.isInBurstMode == false:
-    {.cast(gcsafe).}:
-      log(lvlError, "TINYPOOL: Tried to extend pool's burst mode while pool wasn't in burst mode. You have a logic issue!")
+    error "TINYPOOL: Tried to extend pool's burst mode while pool wasn't in burst mode. You have a logic issue!"
 
   let hasAlreadyMaxBurstModeDuration: bool = pool.burstEndTime - getMonoTime() > pool.burstModeDuration
   if hasAlreadyMaxBurstModeDuration:
@@ -125,8 +122,7 @@ proc borrowConnection(pool: var ConnectionPool): DbConn {.gcsafe.} =
       
     result = pool.connections.pop()
 
-    {.cast(gcsafe).}:
-      log(lvlDebug, fmt "TINYPOOL: AFTER BORROW - Number of connections in pool: {pool.connections.len()}")
+    debug fmt "TINYPOOL: AFTER BORROW - Number of connections in pool: {pool.connections.len()}"
 
 
 proc borrowConnection*(): DbConn {.gcsafe.} =
@@ -153,8 +149,7 @@ proc recycleConnection(pool: var ConnectionPool, connection: DbConn) {.gcsafe.} 
     else:
       pool.connections.add(connection)
 
-    {.cast(gcsafe).}:
-      log(lvlDebug, "TINYPOOL: AFTER RECYCLE - Number of connections in pool: {pool.connections.len()}")
+    debug "TINYPOOL: AFTER RECYCLE - Number of connections in pool: {pool.connections.len()}"
 
 
 proc recycleConnection*(connection: var DbConn) {.gcsafe.} =
@@ -174,7 +169,7 @@ proc destroyConnectionPool*() =
   POOL.defaultPoolSize = -1
   POOL.databasePath = ""
 
-  log(lvlNotice, "TINYPOOL: Destroyed pool to database '{POOL.databasePath}'")
+  notice "TINYPOOL: Destroyed pool to database '{POOL.databasePath}'"
 
 
 template withDbConn*(connection: untyped, body: untyped) =
