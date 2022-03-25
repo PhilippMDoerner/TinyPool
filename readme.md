@@ -80,3 +80,9 @@ While the pool is in burst mode it can hold an unlimited amount of connections.
 While the pool is not in burst mode, any superfluous connection that is returned to it gets closed.
 
 Burst mode ends after a specified duration (30 minutes), though that gets extended if the connections from the added batch are still needed.
+
+## Enabling Logging
+Tinypool logs a variety of messages, but does not supply its own Logger, so it will use whatever logger your application defines.
+However, it is up to you whether you want to enable logging of tinypool or not.
+It is not enabled by default.
+In order to see tinypool's log messages you will have to supply the compilerflag `-d:enableTinyPoolLogging`.
