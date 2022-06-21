@@ -1,32 +1,27 @@
-import std/[times, monotimes, locks, db_sqlite, strformat]
+import std/[times, monotimes, locks, strformat, db_sqlite, db_postgres, db_mysql]
 import log 
+
+export monotimes
+export times
+export locks
 
 type PoolDefect* = object of Defect
 
+type Connection = db_sqlite.DbConn | db_postgres.DbConn | db_mysql.DbConn
+type CreateConnectionProc*[Connection] = proc(): Connection
 
-type ConnectionPool = object
-  connections: seq[DbConn]
-  lock: Lock
-  defaultPoolSize: int
-  burstEndTime: MonoTime # The point in time after which current burst mode ends if burst mode is active
-  isInBurstMode: bool
-  databasePath: string
+type ConnectionPool*[Connection] = ref object
+  connections*: seq[Connection]
+  lock*: Lock
+  defaultPoolSize*: int
+  burstEndTime*: MonoTime # The point in time after which current burst mode ends if burst mode is active
+  isInBurstMode*: bool
+  createConnectionProc: CreateConnectionProc[Connection]
   burstModeDuration: Duration 
 
-
-var POOL {.global.}: ConnectionPool##DO NOT MESS WITH THIS UNLESS YOU KNOW WHAT YOU ARE DOING
-POOL.defaultPoolSize = -1
-POOL.databasePath = ""
-initLock(POOL.lock)
-
-proc isEmpty(pool: ConnectionPool): bool = pool.connections.len() == 0
-proc isFull(pool: ConnectionPool): bool = pool.connections.len() >= pool.defaultPoolSize
-proc isInitialized(pool: ConnectionPool): bool = pool.defaultPoolSize > 0 and pool.databasePath != ""
-
-proc createRawDatabaseConnection(databasePath: string): DbConn =
-    ## Creates a standard sqlite DbConn to the database this was initialized with
-    return open(databasePath, "", "", "")
-
+proc isEmpty*[Connection](pool: ConnectionPool[Connection]): bool = pool.connections.len() == 0
+proc isFull*[Connection](pool: ConnectionPool[Connection]): bool = pool.connections.len() >= pool.defaultPoolSize
+proc isInitialized*[Connection](pool: ConnectionPool[Connection]): bool = pool != nil
 
 proc refillConnections(pool: var ConnectionPool) =
   ## Creates a number of database connections equal to the size of the connection pool
@@ -35,32 +30,35 @@ proc refillConnections(pool: var ConnectionPool) =
     raise newException(PoolDefect, "TINYPOOL: Tried to use uninitialized database connection pool. Did you forget to call 'initConnectionPool' on startup? ")
 
   for i in 1..pool.defaultPoolSize:
-    pool.connections.add(createRawDatabaseConnection(pool.databasePath))
+    pool.connections.add(pool.createConnectionProc())
 
-  debug fmt "TINYPOOL: Refilled Pool to {POOL.connections.len()} connections"
+  debug fmt "TINYPOOL: Refilled Pool to {pool.connections.len()} connections"
 
 
-proc initConnectionPool*(databasePath: string, poolSize: int, burstModeDuration: Duration = initDuration(minutes = 30)) = 
+proc initConnectionPool*[Connection](pool: var ConnectionPool[Connection], createConnectionProc: CreateConnectionProc[Connection], poolSize: int, burstModeDuration: Duration = initDuration(minutes = 30)) = 
   ## Initializes the connection pool globally. To do so requires 
   ## the path to the database (`databasePath`) which shall be connected to, 
   ## and the number of connections within the pool under normal load (`poolSize`).
   ## You can also set the initial duration of the burst mode (burstModeDuration)
   ## once it is triggered. burstModeDuration defaults to 30 minutes.
 
-  if POOL.isInitialized():
+  if pool.isInitialized():
     raise newException(PoolDefect, """TINYPOOL: Tried to initialize database connection pool a second time""")
+  
+  pool = ConnectionPool[Connection](
+    connections: @[],
+    isInBurstMode: false,
+    burstEndTime: getMonoTime(),
+    defaultPoolSize: poolSize,
+    createConnectionProc: createConnectionProc,
+    burstModeDuration: burstModeDuration
+  )
 
-  POOL.connections = @[]
-  POOL.isInBurstMode = false
-  POOL.burstEndTime = getMonoTime()
-  POOL.defaultPoolSize = poolSize
-  POOL.databasePath = databasePath
-  POOL.burstModeDuration = burstModeDuration
+  initLock(pool.lock)
 
-  withLock POOL.lock:
-    POOL.refillConnections()
+  pool.refillConnections()
 
-  notice fmt "TINYPOOL: Initialized pool to database '{POOL.databasePath}' with {POOL.connections.len()} connections"
+  notice fmt "TINYPOOL: Initialized pool with {pool.connections.len()} connections"
 
 
 proc activateBurstMode(pool: var ConnectionPool) =
@@ -76,7 +74,7 @@ proc activateBurstMode(pool: var ConnectionPool) =
   pool.refillConnections()
 
 
-proc updateBurstModeState(pool: var ConnectionPool) =
+proc updateBurstModeState*[Connection](pool: var ConnectionPool[Connection]) =
   ## Checks whether the burst mode on the connection pool has run out and turns
   ## it off if so. Does nothing if burst mode is already off.
   if not pool.isInBurstMode:
@@ -88,7 +86,7 @@ proc updateBurstModeState(pool: var ConnectionPool) =
     notice "TINYPOOL: Deactivated Burst Mode"
 
 
-proc extendBurstModeLifetime(pool: var ConnectionPool) =
+proc extendBurstModeLifetime*[Connection](pool: var ConnectionPool[Connection]) =
   ## Delays the time after which burst mode is turned off for the given pool.
   ## If the point in time is further away from now than the pools boostModeDuration
   ## then the time is not extended. Throws a DbError if burst mode lifetime is
@@ -103,17 +101,17 @@ proc extendBurstModeLifetime(pool: var ConnectionPool) =
   pool.burstEndTime = pool.burstEndTime + initDuration(seconds = 5)
 
 
-proc borrowConnection(pool: var ConnectionPool): DbConn {.gcsafe.} =
+proc borrowConnection*[Connection](pool: var ConnectionPool[Connection]): Connection {.gcsafe.} =
   ## Tries to borrow a database connection from the connection pool.
   ## This operation is thread-safe, as it locks the pool while trying to
   ## borrow a connection from it.
   ## Can activate burst mode if larger amounts of connections are necessary.
   ## Extends the pools burst mode if it is in burst mode and need for
   ## the same level of connections is still present.
+  if not pool.isInitialized():
+    raise newException(PoolDefect, """TINYPOOL: Tried to borrow a connection from an uninitialized/destroyed database connection pool!""")
+  
   withLock pool.lock:
-    if not pool.isInitialized():
-      raise newException(PoolDefect, """TINYPOOL: Tried to borrow a connection from an uninitialized/destroyed database connection pool!""")
-    
     if pool.isEmpty():
       pool.activateBurstMode()
 
@@ -124,13 +122,7 @@ proc borrowConnection(pool: var ConnectionPool): DbConn {.gcsafe.} =
 
     debug fmt "TINYPOOL: AFTER BORROW - Number of connections in pool: {pool.connections.len()}"
 
-
-proc borrowConnection*(): DbConn {.gcsafe.} =
-  {.cast(gcsafe).}:
-    POOL.borrowConnection()
-
-
-proc recycleConnection(pool: var ConnectionPool, connection: DbConn) {.gcsafe.} =
+proc recycleConnection*[Connection](pool: var ConnectionPool[Connection], connection: Connection) {.gcsafe.} =
   ## Recycles a connection and tries to return it to the pool.
   ## This operation is thread-safe, as it locks the pool while trying to return
   ## the connection.
@@ -138,10 +130,10 @@ proc recycleConnection(pool: var ConnectionPool, connection: DbConn) {.gcsafe.} 
   ## and thusclosed and garbage collected.
   ## If the pool is in burst mode, it will allow an unlimited number of 
   ## connections into the pool.
+  if not pool.isInitialized():
+    raise newException(PoolDefect, """TINYPOOL: Tried to recycle a connection back into an uninitialized/destroyed pool!""")
+  
   withLock pool.lock:
-    if not pool.isInitialized():
-      raise newException(PoolDefect, """TINYPOOL: Tried to recycle a connection back into an uninitialized/destroyed pool!""")
-   
     pool.updateBurstModeState()
 
     if pool.isFull() and not pool.isInBurstMode:
@@ -152,24 +144,18 @@ proc recycleConnection(pool: var ConnectionPool, connection: DbConn) {.gcsafe.} 
     debug fmt "TINYPOOL: AFTER RECYCLE - Number of connections in pool: {pool.connections.len()}"
 
 
-proc recycleConnection*(connection: var DbConn) {.gcsafe.} =
-  {.cast(gcsafe).}:
-    POOL.recycleConnection(move connection)
-
-
-proc destroyConnectionPool*() =
+proc destroyConnectionPool*[Connection](pool: var ConnectionPool[Connection]) =
   ## Destroys the currently initialized pool. This also ensures that all
   ## connections currently within the pool are closed.
-  if not POOL.isInitialized():
+  if not pool.isInitialized():
     return
 
-  for connection in POOL.connections:
+  for connection in pool.connections:
     connection.close()
   
-  POOL.defaultPoolSize = -1
-  POOL.databasePath = ""
+  pool = nil
 
-  notice fmt "TINYPOOL: Destroyed pool to database '{POOL.databasePath}'"
+  notice fmt "TINYPOOL: Destroyed pool"
 
 
 template withDbConn*(connection: untyped, body: untyped) =
@@ -187,8 +173,11 @@ template withDbConn*(connection: untyped, body: untyped) =
 
     destroyConnectionPool()
 
+  mixin borrowConnection
+  mixin recycleConnection
+
   block: #ensures connection exists only within the scope of this block
-    var connection: DbConn = borrowConnection()
+    var connection = borrowConnection()
     try:
       body
     finally:
