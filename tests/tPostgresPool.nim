@@ -5,16 +5,18 @@
 #
 # To run these tests, simply execute `nimble test`.
 
-import std/[unittest, logging, db_sqlite]
+import std/[unittest, logging]
 
 import tinypool/postgresPool
 
 setLogFilter(lvlNone)
 
+proc createConnection(): DbConn = open("", "default", "1234", "host=localhost port=5432 dbname=default")
+
 suite "withDbConn":
 
   test "Given an initialized pool, when using withDbConn, then be able to create a table, insert and select entries":
-    initConnectionPool(":memory:", 2)
+    initConnectionPool(createConnection, 2)
 
     withDbConn(myCon):
       myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE)""")
@@ -27,7 +29,7 @@ suite "withDbConn":
     destroyConnectionPool()
   
   test "Given using withDbConn with an initialized pool, when using the connection outside of withDbConn, then don't compile":
-    initConnectionPool(":memory:", 2)
+    initConnectionPool(createConnection, 2)
 
     withDbConn(myCon):
       discard "I'm not doing anything here"
@@ -44,7 +46,7 @@ suite "withDbConn":
 
 
   test "Given a destroyed pool, when asking for a connection throw a PoolDefect":
-    initConnectionPool(":memory:", 2)
+    initConnectionPool(createConnection, 2)
     destroyConnectionPool()
 
     expect PoolDefect:
@@ -54,7 +56,7 @@ suite "withDbConn":
 
 suite "initConnectionPool":
   setup: 
-    initConnectionPool(":memory:", 2)
+    initConnectionPool(createConnection, 2)
   
   teardown:
     destroyConnectionPool()
@@ -62,7 +64,7 @@ suite "initConnectionPool":
 
   test "Given an initialized pool, when initializing it for a second time, throw a PoolDefect":
     expect PoolDefect:
-      initConnectionPool(":memory:", 2)
+      initConnectionPool(createConnection, 2)
       
   
   test "Given an initialized pool with 2, when borrowing more connections than the pool has, generate new connections":
@@ -76,13 +78,13 @@ suite "initConnectionPool":
 
 suite "destroyConnectionPool":
   test "Given an initialized pool, when having destroyed the pool, then be unable to borrow from it":
-    initConnectionPool(":memory:", 2)
+    initConnectionPool(createConnection, 2)
     destroyConnectionPool()
     expect PoolDefect:
       discard borrowConnection()
 
   test "Given an initialized pool, when having destroyed the pool, then be unable to recycle back to it":
-    initConnectionPool(":memory:", 2)
+    initConnectionPool(createConnection, 2)
     var con = borrowConnection()
 
     destroyConnectionPool()
@@ -93,14 +95,14 @@ suite "destroyConnectionPool":
     destroyConnectionPool()
 
   test "Given a destroyed pool, when destroying the pool, do nothing":
-    initConnectionPool(":memory:", 2)
+    initConnectionPool(createConnection, 2)
     destroyConnectionPool()
     destroyConnectionPool()
 
 
 suite "borrowConnection":
   setup: 
-    initConnectionPool(":memory:", 2)
+    initConnectionPool(createConnection, 2)
   
   teardown:
     destroyConnectionPool()
