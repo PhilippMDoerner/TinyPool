@@ -1,6 +1,7 @@
 import core
 import std/[db_sqlite]
 
+export db_sqlite
 export PoolDefect
 export withDbConn
 
