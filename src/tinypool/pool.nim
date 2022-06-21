@@ -149,7 +149,7 @@ proc recycleConnection(pool: var ConnectionPool, connection: DbConn) {.gcsafe.} 
     else:
       pool.connections.add(connection)
 
-    debug "TINYPOOL: AFTER RECYCLE - Number of connections in pool: {pool.connections.len()}"
+    debug fmt "TINYPOOL: AFTER RECYCLE - Number of connections in pool: {pool.connections.len()}"
 
 
 proc recycleConnection*(connection: var DbConn) {.gcsafe.} =
@@ -169,7 +169,7 @@ proc destroyConnectionPool*() =
   POOL.defaultPoolSize = -1
   POOL.databasePath = ""
 
-  notice "TINYPOOL: Destroyed pool to database '{POOL.databasePath}'"
+  notice fmt "TINYPOOL: Destroyed pool to database '{POOL.databasePath}'"
 
 
 template withDbConn*(connection: untyped, body: untyped) =
