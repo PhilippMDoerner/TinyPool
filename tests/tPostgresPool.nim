@@ -19,13 +19,14 @@ suite "withDbConn":
     initConnectionPool(createConnection, 2)
 
     withDbConn(myCon):
-      myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE)""")
+      myCon.exec(sql"""CREATE TABLE "auth_user" ("id" SERIAL PRIMARY KEY, "username" varchar(150) NOT NULL UNIQUE)""")
       myCon.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry')""")
-      let rows = myCon.getAllRows(sql"""SELECT * FROM auth_user WHERE username LIKE 'Henry'""")
+      let rows = myCon.getAllRows(sql"""SELECT * FROM auth_user WHERE username = 'henry'""")
       check rows.len() == 1
       check rows[0][0] == "1"
       check rows[0][1] == "henry"
 
+      myCon.exec(sql"""DROP TABLE "auth_user" """)
     destroyConnectionPool()
   
   test "Given using withDbConn with an initialized pool, when using the connection outside of withDbConn, then don't compile":
@@ -34,7 +35,7 @@ suite "withDbConn":
     withDbConn(myCon):
       discard "I'm not doing anything here"
 
-    check compiles(myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT)""")) == false
+    check compiles(myCon.exec(sql"""CREATE TABLE "auth_user" ("id" SERIAL PRIMARY KEY)""")) == false
 
     destroyConnectionPool()
 
@@ -42,7 +43,7 @@ suite "withDbConn":
   test "Given no initialized pool, when asking for a connection throw a PoolDefect":
     expect PoolDefect:
       withDbConn(myCon):
-        myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
+        myCon.exec(sql"""CREATE TABLE "auth_user" ("id" SERIAL PRIMARY KEY, "username" varchar(150) NOT NULL UNIQUE);""")
 
 
   test "Given a destroyed pool, when asking for a connection throw a PoolDefect":
@@ -51,7 +52,7 @@ suite "withDbConn":
 
     expect PoolDefect:
       withDbConn(myCon):
-        myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
+        myCon.exec(sql"""CREATE TABLE "auth_user" ("id" SERIAL PRIMARY KEY, "username" varchar(150) NOT NULL UNIQUE);""")
 
 
 suite "initConnectionPool":
@@ -110,13 +111,14 @@ suite "borrowConnection":
   test "Given a borrowed connection, when using it to execute an SQL statement, then execute the SQL statement and be recyclable":
     var con = borrowConnection()
     
-    con.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE)""")
+    con.exec(sql"""CREATE TABLE "auth_user" ("id" SERIAL PRIMARY KEY, "username" varchar(150) NOT NULL UNIQUE)""")
     con.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry')""")
-    let rows = con.getAllRows(sql"""SELECT * FROM auth_user WHERE username LIKE 'Henry'""")
+    let rows = con.getAllRows(sql"""SELECT * FROM "auth_user" WHERE username = 'henry'""")
     check rows.len() == 1
     check rows[0][0] == "1"
     check rows[0][1] == "henry"
 
+    con.exec(sql"""DROP TABLE "auth_user" """)
     con.recycleConnection()
   # TODO: Figure out how to implement this
   # test "Given a borrowed connection, when using it after it has been recycled, throw a PoolDefect":
