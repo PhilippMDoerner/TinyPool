@@ -7,7 +7,7 @@
 
 import std/[unittest, logging, db_sqlite]
 
-import tinypool/pool
+import tinypool/sqlite_pool
 
 setLogFilter(lvlNone)
 
