@@ -1,4 +1,3 @@
 {.warning[UnusedImport]: off.}
 
-import tinypool/pool
-export pool
+import tinypool/[mysqlPool, postgresPool, sqlitePool]
