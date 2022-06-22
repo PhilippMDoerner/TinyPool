@@ -33,7 +33,7 @@ template withDbConn*(connection: untyped, body: untyped) =
       myCon.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry');""")
       let rows = myCon.getAllRows(sql"""SELECT * FROM auth_user WHERE username LIKE 'Henry';""")
       assert rows.len() == 1
-      assert rows[0].username == "henry"
+      assert rows[0][1] == "henry" #First field is id, Second field is username
 
     destroyConnectionPool()
 
