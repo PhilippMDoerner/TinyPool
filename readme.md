@@ -83,7 +83,8 @@ initConnectionPool(databasePath, defaultPoolSize)
 ```
  
 #### Initializing postgres/mysql pools
-For postgres and mysql it is required to provide a proc with that creates a database connection with this signature: `proc(): DbConn`.
+For postgres and mysql it is required to provide a proc can create a database connection.
+This proc must have this signature: `proc(): DbConn`.
 tinypool will use that proc to create connections for the pool as needed.
 
 ```nim
