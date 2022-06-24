@@ -18,7 +18,7 @@ Your 2 main ways of interacting with tinypool after initialization are either:
 ### 1. withDbConn
 
 ```nim
-import tinypool/sqlite #For convenience reasons, tinypool also exports std/db_sqlite since you'll need that either way
+import tinypool/sqlitePool #For convenience reasons, sqlitePool also exports std/db_sqlite since you'll need that either way
 
 let databasePath = ":memory:"
 let defaultPoolSize = 2
@@ -42,7 +42,7 @@ destroyConnectionPool()
 ### 2. borrowConnection and recycleConnection
 
 ```nim
-import tinypool/sqlite #For convenience reasons, tinypool also exports std/db_sqlite since you'll need that either way
+import tinypool/sqlitePool #For convenience reasons, sqlitePool also exports std/db_sqlite since you'll need that either way
 
 let databasePath = ":memory:"
 let defaultPoolSize = 2
