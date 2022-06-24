@@ -97,7 +97,7 @@ initConnectionPool(createConnection, defaultPoolSize)
 
 ## burstMode
 
-If more connections are needed than it has, the pool will temporarily go into "burst mode" and automatically refill with new batch of connections, the amount of which is determined by the `poolSize`.
+If more connections are needed than it has, the pool will temporarily go into "burst mode" and automatically refill with a new batch of connections, the amount of which is determined by the `poolSize`.
 
 While the pool is in burst mode it can hold an unlimited amount of connections.
 
