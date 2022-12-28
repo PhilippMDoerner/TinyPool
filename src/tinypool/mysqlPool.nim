@@ -1,5 +1,5 @@
 import core
-import std/[db_mysql]
+import db_connector/[db_mysql]
 
 export db_mysql
 export PoolDefect

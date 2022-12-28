@@ -1,4 +1,5 @@
-import std/[times, monotimes, locks, strformat, db_sqlite, db_postgres, db_mysql]
+import std/[times, monotimes, locks, strformat]
+import db_connector/[db_sqlite, db_mysql, db_postgres]
 import log 
 
 export monotimes

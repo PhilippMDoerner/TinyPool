@@ -1,5 +1,5 @@
 import core
-import std/[db_sqlite]
+import db_connector/[db_sqlite]
 
 export db_sqlite
 export PoolDefect

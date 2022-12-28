@@ -1,5 +1,5 @@
 import core
-import std/[db_postgres]
+import db_connector/[db_postgres]
 
 export db_postgres
 export PoolDefect
