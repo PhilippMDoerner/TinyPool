@@ -1,6 +1,10 @@
 import std/[times, monotimes, locks, strformat]
-import db_connector/[db_sqlite, db_mysql, db_postgres]
-import log 
+import ./log 
+
+when NimMajor == 1 and NimMinor <= 6:
+  import std/[db_sqlite, db_mysql, db_postgres]
+else:
+  import db_connector/[db_sqlite, db_mysql, db_postgres]
 
 export monotimes
 export times

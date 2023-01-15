@@ -1,5 +1,9 @@
 import core
-import db_connector/[db_postgres]
+
+when NimMajor == 1 and NimMinor <= 6:
+  import std/[db_postgres]
+else:
+  import db_connector/[db_postgres]
 
 export db_postgres
 export PoolDefect
