@@ -11,10 +11,9 @@ import tinypool/postgresPool
 
 setLogFilter(lvlNone)
 
-proc createConnection(): DbConn = open("", "default", "1234", "host=localhost port=5432 dbname=default")
+proc createConnection(): DbConn = open("postgres", "postgres", "postgres", "template1")
 
 suite "withDbConn":
-
   test "Given an initialized pool, when using withDbConn, then be able to create a table, insert and select entries":
     initConnectionPool(createConnection, 2)
 
@@ -120,9 +119,9 @@ suite "borrowConnection":
 
     con.exec(sql"""DROP TABLE "auth_user" """)
     con.recycleConnection()
-  # TODO: Figure out how to implement this
-  # test "Given a borrowed connection, when using it after it has been recycled, throw a PoolDefect":
-  #   var con = borrowConnection()
-  #   con.recycleConnection()
+#   # TODO: Figure out how to implement this
+#   # test "Given a borrowed connection, when using it after it has been recycled, throw a PoolDefect":
+#   #   var con = borrowConnection()
+#   #   con.recycleConnection()
 
-  #   check compiles(con.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT)""")) == false
+#   #   check compiles(con.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT)""")) == false

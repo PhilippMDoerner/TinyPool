@@ -1,0 +1,23 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+
+  tests-postgres:
+    build: .
+    image: tinypool
+    depends_on:
+      - postgres
+    volumes:
+      - .:/usr/src/app
+    command: nimble testPostgresContainedCmd
+
+  tests-sqlite:
+    build: .
+    image: tinypool
+    volumes:
+      - .:/usr/src/app
+    command: nimble testSqliteContainerCmd
