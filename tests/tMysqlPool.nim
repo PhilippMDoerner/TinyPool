@@ -1,17 +1,16 @@
-# This is just an example to get you started. You may wish to put all of your
-# tests into a single file, or separate them into multiple `test1`, `test2`
-# etc. files (better names are recommended, just make sure the name starts with
-# the letter 't').
-#
-# To run these tests, simply execute `nimble test`.
+# # This is just an example to get you started. You may wish to put all of your
+# # tests into a single file, or separate them into multiple `test1`, `test2`
+# # etc. files (better names are recommended, just make sure the name starts with
+# # the letter 't').
+# #
+# # To run these tests, simply execute `nimble test`.
 
 import std/[unittest, logging]
 
 import tinypool/mysqlPool
 
 setLogFilter(lvlNone)
-
-proc createConnection(): DbConn = open("", "default", "1234", "host=localhost port=5432 dbname=default")
+proc createConnection(): DbConn = open("mysql", "root", "mysql", "mysql_test_db")
 
 suite "withDbConn":
 
@@ -19,12 +18,14 @@ suite "withDbConn":
     initConnectionPool(createConnection, 2)
 
     withDbConn(myCon):
-      myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE)""")
+      myCon.exec(sql"""CREATE TABLE IF NOT EXISTS auth_user (ID int NOT NULL AUTO_INCREMENT, username varchar(150) NOT NULL, PRIMARY KEY(ID))""")
       myCon.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry')""")
       let rows = myCon.getAllRows(sql"""SELECT * FROM auth_user WHERE username LIKE 'Henry'""")
       check rows.len() == 1
       check rows[0][0] == "1"
       check rows[0][1] == "henry"
+
+      myCon.exec(sql"""DROP TABLE auth_user""")
 
     destroyConnectionPool()
   
@@ -34,7 +35,7 @@ suite "withDbConn":
     withDbConn(myCon):
       discard "I'm not doing anything here"
 
-    check compiles(myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT)""")) == false
+    check compiles(myCon.exec(sql"""CREATE TABLE IF NOT EXISTS auth_user (ID int NOT NULL AUTO_INCREMENT, username varchar(150) NOT NULL, PRIMARY KEY(ID))""")) == false
 
     destroyConnectionPool()
 
@@ -42,7 +43,7 @@ suite "withDbConn":
   test "Given no initialized pool, when asking for a connection throw a PoolDefect":
     expect PoolDefect:
       withDbConn(myCon):
-        myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
+        myCon.exec(sql"""CREATE TABLE IF NOT EXISTS auth_user (ID int NOT NULL AUTO_INCREMENT, username varchar(150) NOT NULL, PRIMARY KEY(ID))""")
 
 
   test "Given a destroyed pool, when asking for a connection throw a PoolDefect":
@@ -51,7 +52,7 @@ suite "withDbConn":
 
     expect PoolDefect:
       withDbConn(myCon):
-        myCon.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE);""")
+        myCon.exec(sql"""CREATE TABLE IF NOT EXISTS auth_user (ID int NOT NULL AUTO_INCREMENT, username varchar(150) NOT NULL, PRIMARY KEY(ID))""")
 
 
 suite "initConnectionPool":
@@ -110,17 +111,19 @@ suite "borrowConnection":
   test "Given a borrowed connection, when using it to execute an SQL statement, then execute the SQL statement and be recyclable":
     var con = borrowConnection()
     
-    con.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT, "username" varchar(150) NOT NULL UNIQUE)""")
+    con.exec(sql"""CREATE TABLE IF NOT EXISTS auth_user (ID int NOT NULL AUTO_INCREMENT, username varchar(150) NOT NULL, PRIMARY KEY(ID))""")
     con.exec(sql"""INSERT INTO auth_user (username) VALUES ('henry')""")
     let rows = con.getAllRows(sql"""SELECT * FROM auth_user WHERE username LIKE 'Henry'""")
     check rows.len() == 1
     check rows[0][0] == "1"
     check rows[0][1] == "henry"
 
+    con.exec(sql"""DROP TABLE auth_user""")
     con.recycleConnection()
+
   # TODO: Figure out how to implement this
   # test "Given a borrowed connection, when using it after it has been recycled, throw a PoolDefect":
   #   var con = borrowConnection()
   #   con.recycleConnection()
 
-  #   check compiles(con.exec(sql"""CREATE TABLE "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT)""")) == false
+  #   check compiles(con.exec(sql"""CREATE TABLE IF NOT EXISTS "auth_user" ("id" integer NOT NULL PRIMARY KEY AUTOINCREMENT)""")) == false

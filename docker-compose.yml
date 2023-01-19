@@ -5,6 +5,12 @@ services:
     image: postgres
     environment:
       POSTGRES_PASSWORD: postgres
+    
+  mysql:
+    image: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      MYSQL_DATABASE: mysql_test_db
 
   tests-postgres:
     build: .
@@ -21,3 +27,12 @@ services:
     volumes:
       - .:/usr/src/app
     command: nimble testSqliteContainerCmd
+
+  tests-mysql:
+    build: .
+    image: tinypool
+    depends_on:
+      - mysql
+    volumes:
+      - .:/usr/src/app
+    command: nimble testMysqlContainerCmd

@@ -26,6 +26,9 @@ task testPostgresContainedCmd, "Runs the test suite":
 task testSqliteContainerCmd, "Runs the test suite":
   exec "nim c -r --mm:orc --deepcopy:on --threads:on tests/tSqlitePool.nim"
 
+task testMysqlContainerCmd, "Runs the test suite":
+  exec "nim c -r --mm:orc --deepcopy:on --threads:on tests/tMysqlPool.nim"
+
 task postgresTests, "Run containerized postgres tests":
   echo staticExec "sudo docker image rm tinypool"
   exec "sudo docker-compose run --rm tests-postgres"
@@ -33,3 +36,7 @@ task postgresTests, "Run containerized postgres tests":
 task sqliteTests, "Run containerized sqlite tests":
   echo staticExec "sudo docker image rm tinypool"
   exec "sudo docker-compose run --rm tests-sqlite"
+
+task mysqlTests, "Run containerized mysql tests":
+  echo staticExec "sudo docker image rm tinypool"
+  exec "sudo docker-compose run --rm tests-mysql"
