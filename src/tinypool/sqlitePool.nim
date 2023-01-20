@@ -1,5 +1,9 @@
 import core
-import db_connector/[db_sqlite]
+
+when NimMajor == 1 and NimMinor <= 6:
+  import std/[db_sqlite]
+else:
+  import db_connector/[db_sqlite]
 
 export db_sqlite
 export PoolDefect

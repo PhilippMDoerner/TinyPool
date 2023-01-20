@@ -1,5 +1,9 @@
 import core
-import db_connector/[db_mysql]
+
+when NimMajor == 1 and NimMinor <= 6:
+  import std/[db_mysql]
+else:
+  import db_connector/[db_mysql]
 
 export db_mysql
 export PoolDefect
