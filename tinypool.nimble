@@ -10,6 +10,8 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 1.6.4"
+when NimMajor >= 1 and NimMinor >= 7:
+  requires "db_connector >= 0.1.0"
 
 
 # Tasks
