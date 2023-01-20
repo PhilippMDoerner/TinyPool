@@ -4,6 +4,7 @@ Tinypool is a minimalistic connection pool with support for multi-threaded acces
 It's essentially a global-variable `seq[DbConn]` associated with a `lock` that can be accessed in a thread-safe manner.
 It also grows and shrinks as configured, but more on that down the line.
 
+Note: Tinypool now also explicitly supports nim 1.9.1 (and thus should work on nim 2.0 in general).
 ## Installation
 
 `nimble install tinypool`
