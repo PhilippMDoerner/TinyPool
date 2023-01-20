@@ -1,4 +1,4 @@
-FROM ubuntu:devel
+FROM bitnami/minideb
 
 RUN apt-get update && apt-get install -y curl xz-utils g++ git make
 ENV OPENSSLDIR=/usr/local/ssl
